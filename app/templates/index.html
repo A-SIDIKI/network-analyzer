@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyseur Réseau - Tableau de bord</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0e27;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4ECDC4;
+            font-size: 2.5rem;
+        }
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        .upload-area {
+            border: 2px dashed #4ECDC4;
+            padding: 40px;
+            text-align: center;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            background: rgba(78, 205, 196, 0.1);
+        }
+        .upload-area input {
+            display: none;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .stat-item {
+            background: rgba(78, 205, 196, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border-left: 4px solid #4ECDC4;
+        }
+        .stat-item .number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4ECDC4;
+        }
+        .stat-item .label {
+            color: #aaa;
+            margin-top: 5px;
+        }
+        .protocol-list {
+            list-style: none;
+            padding: 0;
+        }
+        .protocol-list li {
+            padding: 10px 15px;
+            margin: 5px 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            border-left: 4px solid #45B7D1;
+        }
+        .protocol-list .http { border-left-color: #FF6B6B; }
+        .protocol-list .https { border-left-color: #4ECDC4; }
+        .protocol-list .dns { border-left-color: #45B7D1; }
+        .protocol-list .dhcp { border-left-color: #96CEB4; }
+        .protocol-list .autre { border-left-color: #FFEAA7; }
+        .chart-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .chart-container img {
+            max-width: 100%;
+            border-radius: 10px;
+        }
+        .btn {
+            background: #4ECDC4;
+            color: #0a0e27;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(78, 205, 196, 0.3);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .loading .spinner {
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top: 4px solid #4ECDC4;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid #FF6B6B;
+            color: #FF6B6B;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 Analyseur Réseau</h1>
+        
+        <div class="card">
+            <h2>📤 Importer une capture</h2>
+            <div class="upload-area" id="uploadArea">
+                <p>📁 Cliquez ou déposez un fichier .pcap ici</p>
+                <input type="file" id="fileInput" accept=".pcap">
+            </div>
+            <div id="fileName" style="margin-top: 10px; color: #4ECDC4; text-align: center;"></div>
+            <div style="text-align: center; margin-top: 15px;">
+                <button class="btn" id="analyzeBtn" disabled>Analyser</button>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 10px;">Analyse en cours...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div id="results" style="display: none;">
+            <div class="card">
+                <h2>📊 Statistiques</h2>
+                <div class="stats-grid" id="statsGrid"></div>
+            </div>
+
+            <div class="card">
+                <h2>📈 Répartition des protocoles</h2>
+                <div class="chart-container" id="chartContainer"></div>
+                <ul class="protocol-list" id="protocolList"></ul>
+            </div>
+
+            <div class="card">
+                <h2>🔝 Top 5 IP sources</h2>
+                <ul class="protocol-list" id="topSources"></ul>
+            </div>
+
+            <div class="card">
+                <h2>🔝 Top 5 IP destinations</h2>
+                <ul class="protocol-list" id="topDestinations"></ul>
+            </div>
+        </div>
+
+        <div class="footer">
+            Développé avec ❤️ en Python • Scapy • Pandas • Flask
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const results = document.getElementById('results');
+
+        let selectedFile = null;
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#FF6B6B';
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = '#4ECDC4';
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#4ECDC4';
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.pcap')) {
+                showError('⚠️ Veuillez sélectionner un fichier .pcap');
+                return;
+            }
+            selectedFile = file;
+            fileName.textContent = `📎 ${file.name}`;
+            analyzeBtn.disabled = false;
+            hideError();
+        }
+
+        analyzeBtn.addEventListener('click', () => {
+            if (!selectedFile) return;
+            
+            const formData = new FormData();
+            formData.append('fichier', selectedFile);
+            
+            loading.style.display = 'block';
+            analyzeBtn.disabled = true;
+            results.style.display = 'none';
+            hideError();
+
+            fetch('/analyser', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                analyzeBtn.disabled = false;
+                
+                if (data.success) {
+                    displayResults(data);
+                } else {
+                    showError(`❌ Erreur: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                loading.style.display = 'none';
+                analyzeBtn.disabled = false;
+                showError(`❌ Erreur: ${err.message}`);
+            });
+        });
+
+        function displayResults(data) {
+            // Statistiques
+            const grid = document.getElementById('statsGrid');
+            grid.innerHTML = `
+                <div class="stat-item">
+                    <div class="number">${data.total}</div>
+                    <div class="label">Total paquets</div>
+                </div>
+                <div class="stat-item">
+                    <div class="number">${data.protocoles.HTTP + data.protocoles.HTTPS}</div>
+                    <div class="label">🌐 Web (HTTP/HTTPS)</div>
+                </div>
+                <div class="stat-item">
+                    <div class="number">${data.protocoles.DNS}</div>
+                    <div class="label">📧 DNS</div>
+                </div>
+                <div class="stat-item">
+                    <div class="number">${data.protocoles.DHCP}</div>
+                    <div class="label">🔧 DHCP</div>
+                </div>
+            `;
+
+            // Graphique
+            if (data.graphique) {
+                document.getElementById('chartContainer').innerHTML = 
+                    `<img src="data:image/png;base64,${data.graphique}" alt="Graphique">`;
+            }
+
+            // Liste des protocoles
+            const protoList = document.getElementById('protocolList');
+            const classes = {
+                'HTTP': 'http',
+                'HTTPS': 'https',
+                'DNS': 'dns',
+                'DHCP': 'dhcp',
+                'AUTRE': 'autre',
+                'NON-IP': 'autre'
+            };
+            protoList.innerHTML = Object.entries(data.protocoles)
+                .filter(([_, count]) => count > 0)
+                .map(([proto, count]) => 
+                    `<li class="${classes[proto] || 'autre'}">
+                        <span>${proto}</span>
+                        <span>${count} paquets (${(count/data.total*100).toFixed(1)}%)</span>
+                    </li>`
+                ).join('');
+
+            // Top sources
+            const sourcesList = document.getElementById('topSources');
+            sourcesList.innerHTML = data.top_sources.map(([ip, count]) =>
+                `<li><span>${ip}</span><span>${count} paquets</span></li>`
+            ).join('');
+
+            // Top destinations
+            const destList = document.getElementById('topDestinations');
+            destList.innerHTML = data.top_destinations.map(([ip, count]) =>
+                `<li><span>${ip}</span><span>${count} paquets</span></li>`
+            ).join('');
+
+            results.style.display = 'block';
+            results.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function showError(msg) {
+            error.textContent = msg;
+            error.style.display = 'block';
+        }
+
+        function hideError() {
+            error.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
