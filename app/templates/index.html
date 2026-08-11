@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analyseur Réseau - Tableau de bord</title>
+    <title>Analyseur Réseau Pro</title>
     <style>
         * {
             margin: 0;
@@ -15,9 +15,10 @@
             background: #0a0e27;
             color: #fff;
             padding: 20px;
+            min-height: 100vh;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         h1 {
@@ -26,6 +27,11 @@
             color: #4ECDC4;
             font-size: 2.5rem;
         }
+        h1 small {
+            font-size: 0.8rem;
+            color: #888;
+            display: block;
+        }
         .card {
             background: rgba(255,255,255,0.05);
             border-radius: 15px;
@@ -33,6 +39,16 @@
             margin-bottom: 25px;
             border: 1px solid rgba(255,255,255,0.1);
             backdrop-filter: blur(10px);
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
         }
         .upload-area {
             border: 2px dashed #4ECDC4;
@@ -44,32 +60,42 @@
         }
         .upload-area:hover {
             background: rgba(78, 205, 196, 0.1);
+            border-color: #FF6B6B;
         }
         .upload-area input {
             display: none;
         }
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
             margin: 20px 0;
         }
         .stat-item {
             background: rgba(78, 205, 196, 0.1);
-            padding: 20px;
+            padding: 15px;
             border-radius: 10px;
             text-align: center;
             border-left: 4px solid #4ECDC4;
+            transition: transform 0.3s;
+        }
+        .stat-item:hover {
+            transform: translateY(-5px);
         }
         .stat-item .number {
-            font-size: 2.5rem;
+            font-size: 2rem;
             font-weight: bold;
             color: #4ECDC4;
         }
         .stat-item .label {
             color: #aaa;
             margin-top: 5px;
+            font-size: 0.9rem;
         }
+        .stat-item.http { border-left-color: #FF6B6B; }
+        .stat-item.https { border-left-color: #4ECDC4; }
+        .stat-item.dns { border-left-color: #45B7D1; }
+        .stat-item.dhcp { border-left-color: #96CEB4; }
         .protocol-list {
             list-style: none;
             padding: 0;
@@ -82,12 +108,18 @@
             display: flex;
             justify-content: space-between;
             border-left: 4px solid #45B7D1;
+            transition: all 0.3s;
+        }
+        .protocol-list li:hover {
+            background: rgba(255,255,255,0.1);
         }
         .protocol-list .http { border-left-color: #FF6B6B; }
         .protocol-list .https { border-left-color: #4ECDC4; }
         .protocol-list .dns { border-left-color: #45B7D1; }
         .protocol-list .dhcp { border-left-color: #96CEB4; }
-        .protocol-list .autre { border-left-color: #FFEAA7; }
+        .protocol-list .ssh { border-left-color: #FF9FF3; }
+        .protocol-list .smtp { border-left-color: #FECA57; }
+        .protocol-list .autre { border-left-color: #888; }
         .chart-container {
             text-align: center;
             margin: 20px 0;
@@ -95,6 +127,7 @@
         .chart-container img {
             max-width: 100%;
             border-radius: 10px;
+            box-shadow: 0 5px 30px rgba(0,0,0,0.3);
         }
         .btn {
             background: #4ECDC4;
@@ -106,6 +139,7 @@
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
+            margin: 5px;
         }
         .btn:hover {
             transform: scale(1.05);
@@ -115,6 +149,42 @@
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
+        }
+        .btn-danger {
+            background: #FF6B6B;
+        }
+        .btn-danger:hover {
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.3);
+        }
+        .btn-success {
+            background: #45B7D1;
+        }
+        .btn-success:hover {
+            box-shadow: 0 5px 20px rgba(69, 183, 209, 0.3);
+        }
+        .btn-warning {
+            background: #FECA57;
+            color: #0a0e27;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 15px 0;
+        }
+        .select {
+            padding: 10px 20px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .select option {
+            background: #0a0e27;
+            color: #fff;
         }
         .loading {
             display: none;
@@ -142,27 +212,104 @@
             border-radius: 8px;
             display: none;
         }
+        .success-msg {
+            background: rgba(78, 205, 196, 0.2);
+            border: 1px solid #4ECDC4;
+            color: #4ECDC4;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        .live-status {
+            padding: 10px 20px;
+            border-radius: 20px;
+            display: inline-block;
+            font-weight: bold;
+        }
+        .live-status.active {
+            background: rgba(255, 107, 107, 0.2);
+            color: #FF6B6B;
+            animation: pulse 1s infinite;
+        }
+        .live-status.inactive {
+            background: rgba(78, 205, 196, 0.2);
+            color: #4ECDC4;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
         .footer {
             text-align: center;
             margin-top: 40px;
             color: #666;
             font-size: 0.9rem;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 20px;
         }
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .badge-http { background: #FF6B6B; }
+        .badge-https { background: #4ECDC4; }
+        .badge-dns { background: #45B7D1; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🌐 Analyseur Réseau</h1>
-        
+        <h1>
+            🌐 Analyseur Réseau Pro
+            <small>Analyse de trafic en temps réel</small>
+        </h1>
+
+        <!-- Barre d'outils -->
         <div class="card">
-            <h2>📤 Importer une capture</h2>
-            <div class="upload-area" id="uploadArea">
-                <p>📁 Cliquez ou déposez un fichier .pcap ici</p>
-                <input type="file" id="fileInput" accept=".pcap">
+            <div class="btn-group">
+                <button class="btn btn-success" id="liveCaptureBtn">📡 Capture en direct</button>
+                <button class="btn btn-danger" id="stopCaptureBtn" style="display:none;">⏹️ Arrêter</button>
+                <span id="liveStatus" class="live-status inactive">⏸️ Inactif</span>
+                <span id="paquetCount" style="color:#888; margin-left:10px;">Paquets: 0</span>
             </div>
-            <div id="fileName" style="margin-top: 10px; color: #4ECDC4; text-align: center;"></div>
-            <div style="text-align: center; margin-top: 15px;">
-                <button class="btn" id="analyzeBtn" disabled>Analyser</button>
+        </div>
+
+        <div class="grid-2">
+            <!-- Upload -->
+            <div class="card">
+                <h3>📤 Importer une capture</h3>
+                <div class="upload-area" id="uploadArea">
+                    <p>📁 Cliquez ou déposez un fichier .pcap ici</p>
+                    <input type="file" id="fileInput" accept=".pcap">
+                </div>
+                <div id="fileName" style="margin-top: 10px; color: #4ECDC4; text-align: center;"></div>
+                
+                <div style="margin-top: 15px;">
+                    <label>Filtrer par protocole :</label>
+                    <select class="select" id="filtreSelect">
+                        <option value="TOUS">📊 Tous</option>
+                        <option value="HTTP">🌐 HTTP</option>
+                        <option value="HTTPS">🔒 HTTPS</option>
+                        <option value="DNS">📧 DNS</option>
+                        <option value="DHCP">🔧 DHCP</option>
+                        <option value="SSH">💻 SSH</option>
+                        <option value="SMTP">📨 SMTP</option>
+                    </select>
+                </div>
+                <div style="text-align: center; margin-top: 15px;">
+                    <button class="btn" id="analyzeBtn" disabled>Analyser</button>
+                </div>
+            </div>
+
+            <!-- Fichiers disponibles -->
+            <div class="card">
+                <h3>📂 Fichiers disponibles</h3>
+                <ul class="protocol-list" id="fichierList">
+                    <li style="color:#888; text-align:center; border-left-color: #888;">Aucun fichier</li>
+                </ul>
+                <button class="btn btn-warning" id="refreshFilesBtn" style="width:100%; margin-top:10px;">🔄 Rafraîchir</button>
             </div>
         </div>
 
@@ -172,6 +319,7 @@
         </div>
 
         <div class="error" id="error"></div>
+        <div class="success-msg" id="success"></div>
 
         <div id="results" style="display: none;">
             <div class="card">
@@ -179,39 +327,69 @@
                 <div class="stats-grid" id="statsGrid"></div>
             </div>
 
-            <div class="card">
-                <h2>📈 Répartition des protocoles</h2>
-                <div class="chart-container" id="chartContainer"></div>
-                <ul class="protocol-list" id="protocolList"></ul>
+            <div class="grid-2">
+                <div class="card">
+                    <h2>📈 Répartition des protocoles</h2>
+                    <div class="chart-container" id="chartPie"></div>
+                    <ul class="protocol-list" id="protocolList"></ul>
+                </div>
+                <div class="card">
+                    <h2>⏱️ Évolution du trafic</h2>
+                    <div class="chart-container" id="chartTimeline"></div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h2>🔝 Top 10 IP sources</h2>
+                    <ul class="protocol-list" id="topSources"></ul>
+                </div>
+                <div class="card">
+                    <h2>🔝 Top 10 IP destinations</h2>
+                    <ul class="protocol-list" id="topDestinations"></ul>
+                </div>
             </div>
 
             <div class="card">
-                <h2>🔝 Top 5 IP sources</h2>
-                <ul class="protocol-list" id="topSources"></ul>
+                <h2>🔌 Top 10 ports utilisés</h2>
+                <div class="chart-container" id="chartPorts"></div>
+                <ul class="protocol-list" id="topPorts"></ul>
             </div>
 
-            <div class="card">
-                <h2>🔝 Top 5 IP destinations</h2>
-                <ul class="protocol-list" id="topDestinations"></ul>
+            <div class="card" style="text-align:center;">
+                <button class="btn btn-warning" id="exportPdfBtn">📄 Exporter en PDF</button>
             </div>
         </div>
 
         <div class="footer">
-            Développé avec ❤️ en Python • Scapy • Pandas • Flask
+            Développé avec ❤️ en Python • Scapy • Pandas • Flask • Matplotlib
         </div>
     </div>
 
     <script>
+        // ==================== ÉTAT ====================
+        let selectedFile = null;
+        let currentResult = null;
+        let currentFilename = null;
+        let liveCapture = false;
+
+        // ==================== RÉFÉRENCES ====================
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const fileName = document.getElementById('fileName');
         const analyzeBtn = document.getElementById('analyzeBtn');
         const loading = document.getElementById('loading');
         const error = document.getElementById('error');
+        const success = document.getElementById('success');
         const results = document.getElementById('results');
+        const filtreSelect = document.getElementById('filtreSelect');
+        const liveCaptureBtn = document.getElementById('liveCaptureBtn');
+        const stopCaptureBtn = document.getElementById('stopCaptureBtn');
+        const liveStatus = document.getElementById('liveStatus');
+        const paquetCount = document.getElementById('paquetCount');
+        const fichierList = document.getElementById('fichierList');
 
-        let selectedFile = null;
-
+        // ==================== UPLOAD ====================
         uploadArea.addEventListener('click', () => fileInput.click());
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -243,18 +421,22 @@
             fileName.textContent = `📎 ${file.name}`;
             analyzeBtn.disabled = false;
             hideError();
+            hideSuccess();
         }
 
+        // ==================== ANALYSE ====================
         analyzeBtn.addEventListener('click', () => {
             if (!selectedFile) return;
             
             const formData = new FormData();
             formData.append('fichier', selectedFile);
+            formData.append('filtre', filtreSelect.value);
             
             loading.style.display = 'block';
             analyzeBtn.disabled = true;
             results.style.display = 'none';
             hideError();
+            hideSuccess();
 
             fetch('/analyser', {
                 method: 'POST',
@@ -266,7 +448,10 @@
                 analyzeBtn.disabled = false;
                 
                 if (data.success) {
+                    currentResult = data;
+                    currentFilename = selectedFile.name;
                     displayResults(data);
+                    showSuccess(`✅ Analyse terminée : ${data.total} paquets analysés`);
                 } else {
                     showError(`❌ Erreur: ${data.error}`);
                 }
@@ -278,32 +463,58 @@
             });
         });
 
+        // ==================== AFFICHAGE ====================
         function displayResults(data) {
             // Statistiques
             const grid = document.getElementById('statsGrid');
+            const p = data.protocoles;
             grid.innerHTML = `
                 <div class="stat-item">
                     <div class="number">${data.total}</div>
-                    <div class="label">Total paquets</div>
+                    <div class="label">📦 Total paquets</div>
                 </div>
-                <div class="stat-item">
-                    <div class="number">${data.protocoles.HTTP + data.protocoles.HTTPS}</div>
-                    <div class="label">🌐 Web (HTTP/HTTPS)</div>
+                <div class="stat-item http">
+                    <div class="number">${p.HTTP || 0}</div>
+                    <div class="label">🌐 HTTP</div>
                 </div>
-                <div class="stat-item">
-                    <div class="number">${data.protocoles.DNS}</div>
+                <div class="stat-item https">
+                    <div class="number">${p.HTTPS || 0}</div>
+                    <div class="label">🔒 HTTPS</div>
+                </div>
+                <div class="stat-item dns">
+                    <div class="number">${p.DNS || 0}</div>
                     <div class="label">📧 DNS</div>
                 </div>
-                <div class="stat-item">
-                    <div class="number">${data.protocoles.DHCP}</div>
+                <div class="stat-item dhcp">
+                    <div class="number">${p.DHCP || 0}</div>
                     <div class="label">🔧 DHCP</div>
+                </div>
+                <div class="stat-item" style="border-left-color:#FF9FF3;">
+                    <div class="number">${p.SSH || 0}</div>
+                    <div class="label">💻 SSH</div>
+                </div>
+                <div class="stat-item" style="border-left-color:#FECA57;">
+                    <div class="number">${p.SMTP || 0}</div>
+                    <div class="label">📨 SMTP</div>
                 </div>
             `;
 
-            // Graphique
-            if (data.graphique) {
-                document.getElementById('chartContainer').innerHTML = 
-                    `<img src="data:image/png;base64,${data.graphique}" alt="Graphique">`;
+            // Graphique camembert
+            if (data.graphique_pie) {
+                document.getElementById('chartPie').innerHTML = 
+                    `<img src="data:image/png;base64,${data.graphique_pie}" alt="Répartition">`;
+            }
+
+            // Timeline
+            if (data.graphique_timeline) {
+                document.getElementById('chartTimeline').innerHTML = 
+                    `<img src="data:image/png;base64,${data.graphique_timeline}" alt="Timeline">`;
+            }
+
+            // Ports
+            if (data.graphique_ports) {
+                document.getElementById('chartPorts').innerHTML = 
+                    `<img src="data:image/png;base64,${data.graphique_ports}" alt="Ports">`;
             }
 
             // Liste des protocoles
@@ -313,6 +524,8 @@
                 'HTTPS': 'https',
                 'DNS': 'dns',
                 'DHCP': 'dhcp',
+                'SSH': 'ssh',
+                'SMTP': 'smtp',
                 'AUTRE': 'autre',
                 'NON-IP': 'autre'
             };
@@ -337,18 +550,168 @@
                 `<li><span>${ip}</span><span>${count} paquets</span></li>`
             ).join('');
 
+            // Top ports
+            const portsList = document.getElementById('topPorts');
+            portsList.innerHTML = data.top_ports.map(([port, count]) =>
+                `<li><span>Port ${port}</span><span>${count} paquets</span></li>`
+            ).join('');
+
             results.style.display = 'block';
             results.scrollIntoView({ behavior: 'smooth' });
         }
 
+        // ==================== CAPTURE EN DIRECT ====================
+        liveCaptureBtn.addEventListener('click', () => {
+            if (liveCapture) return;
+            
+            fetch('/capture_start', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        liveCapture = true;
+                        liveCaptureBtn.style.display = 'none';
+                        stopCaptureBtn.style.display = 'inline-block';
+                        liveStatus.className = 'live-status active';
+                        liveStatus.textContent = '🔴 Capture en cours...';
+                        showSuccess('📡 Capture démarrée !');
+                        updateLiveStatus();
+                    } else {
+                        showError(data.error);
+                    }
+                });
+        });
+
+        stopCaptureBtn.addEventListener('click', () => {
+            fetch('/capture_stop', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    liveCapture = false;
+                    liveCaptureBtn.style.display = 'inline-block';
+                    stopCaptureBtn.style.display = 'none';
+                    liveStatus.className = 'live-status inactive';
+                    liveStatus.textContent = '⏸️ Inactif';
+                    paquetCount.textContent = 'Paquets: 0';
+                    
+                    if (data.success && data.paquets > 0) {
+                        showSuccess(`✅ Capture terminée : ${data.paquets} paquets sauvegardés dans ${data.fichier}`);
+                        chargerFichiers();
+                    } else if (data.success) {
+                        showSuccess('✅ Capture terminée (aucun paquet)');
+                    } else {
+                        showError(data.error);
+                    }
+                });
+        });
+
+        function updateLiveStatus() {
+            if (!liveCapture) return;
+            
+            fetch('/capture_status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.active) {
+                        paquetCount.textContent = `Paquets: ${data.paquets}`;
+                        setTimeout(updateLiveStatus, 1000);
+                    }
+                });
+        }
+
+        // ==================== FICHIERS ====================
+        function chargerFichiers() {
+            fetch('/fichiers')
+                .then(r => r.json())
+                .then(fichiers => {
+                    if (fichiers.length === 0) {
+                        fichierList.innerHTML = '<li style="color:#888; text-align:center; border-left-color:#888;">Aucun fichier</li>';
+                        return;
+                    }
+                    fichierList.innerHTML = fichiers.map(f =>
+                        `<li style="cursor:pointer;" onclick="chargerFichier('${f.nom}')">
+                            <span>📄 ${f.nom}</span>
+                            <span>${(f.taille/1024).toFixed(1)} Ko</span>
+                        </li>`
+                    ).join('');
+                });
+        }
+
+        function chargerFichier(nom) {
+            // Simuler un upload du fichier existant
+            fetch(`/api/stats/${nom}?filtre=${filtreSelect.value}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        currentResult = data;
+                        currentFilename = nom;
+                        displayResults(data);
+                        showSuccess(`✅ ${nom} chargé : ${data.total} paquets`);
+                    } else {
+                        showError(data.error);
+                    }
+                });
+        }
+
+        document.getElementById('refreshFilesBtn').addEventListener('click', chargerFichiers);
+
+        // ==================== EXPORT PDF ====================
+        document.getElementById('exportPdfBtn').addEventListener('click', () => {
+            if (!currentResult) {
+                showError('⚠️ Aucune analyse à exporter');
+                return;
+            }
+
+            fetch('/export_pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    resultat: currentResult,
+                    nom: currentFilename || 'analyse'
+                })
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'rapport_analyse.pdf';
+                a.click();
+                window.URL.revokeObjectURL(url);
+                showSuccess('✅ Rapport PDF téléchargé !');
+            })
+            .catch(err => showError(`❌ Erreur export: ${err.message}`));
+        });
+
+        // ==================== UTILITAIRES ====================
         function showError(msg) {
             error.textContent = msg;
             error.style.display = 'block';
+            success.style.display = 'none';
         }
 
         function hideError() {
             error.style.display = 'none';
         }
+
+        function showSuccess(msg) {
+            success.textContent = msg;
+            success.style.display = 'block';
+            error.style.display = 'none';
+            setTimeout(() => { success.style.display = 'none'; }, 5000);
+        }
+
+        function hideSuccess() {
+            success.style.display = 'none';
+        }
+
+        // ==================== INIT ====================
+        chargerFichiers();
+        setInterval(chargerFichiers, 30000); // Rafraîchir toutes les 30s
+
+        // Filtrer après analyse
+        filtreSelect.addEventListener('change', () => {
+            if (selectedFile) {
+                analyzeBtn.click();
+            }
+        });
     </script>
 </body>
 </html>
